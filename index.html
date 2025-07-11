@@ -4,182 +4,288 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>工作记录管理后台</title>
-    <link rel="stylesheet" href="css/admin.css">
+    <link rel="stylesheet" href="./css/admin.css">
+    <link rel="manifest" href="./manifest.json">
+    <meta name="theme-color" content="#667eea">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/date-fns@2.29.3/index.min.js"></script>
 </head>
 <body>
     <div class="admin-container">
-        <!-- 顶部导航 -->
-        <header class="admin-header">
-            <div class="header-content">
-                <h1>📊 工作记录管理后台</h1>
-                <div class="header-actions">
-                    <button id="refreshBtn" class="btn btn-primary">🔄 刷新数据</button>
-                    <button id="exportBtn" class="btn btn-secondary">📥 导出数据</button>
+        <!-- 侧边栏 -->
+        <aside class="sidebar">
+            <div class="logo">
+                <h2>📊 管理后台</h2>
+            </div>
+            <nav class="nav-menu">
+                <ul>
+                    <li class="nav-item active" data-page="dashboard">
+                        <span class="icon">📈</span>
+                        <span>数据概览</span>
+                    </li>
+                    <li class="nav-item" data-page="users">
+                        <span class="icon">👥</span>
+                        <span>用户管理</span>
+                    </li>
+                    <li class="nav-item" data-page="reports">
+                        <span class="icon">📋</span>
+                        <span>工作记录</span>
+                    </li>
+                    <li class="nav-item" data-page="analytics">
+                        <span class="icon">📊</span>
+                        <span>数据分析</span>
+                    </li>
+                    <li class="nav-item" data-page="export">
+                        <span class="icon">📤</span>
+                        <span>数据导出</span>
+                    </li>
+                    <li class="nav-item" data-page="settings">
+                        <span class="icon">⚙️</span>
+                        <span>系统设置</span>
+                    </li>
+                </ul>
+            </nav>
+        </aside>
+
+        <!-- 主内容区 -->
+        <main class="main-content">
+            <!-- 头部 -->
+            <header class="header">
+                <div class="header-left">
+                    <h1 id="page-title">数据概览</h1>
+                </div>
+                <div class="header-right">
+                    <div class="user-info">
+                        <span>管理员</span>
+                        <button class="logout-btn">退出</button>
+                    </div>
+                </div>
+            </header>
+
+            <!-- 页面内容 -->
+            <div class="content">
+                <!-- 数据概览页面 -->
+                <div id="dashboard-page" class="page active">
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-icon">👥</div>
+                            <div class="stat-info">
+                                <div class="stat-number" id="total-users">-</div>
+                                <div class="stat-label">总用户数</div>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon">📋</div>
+                            <div class="stat-info">
+                                <div class="stat-number" id="total-reports">-</div>
+                                <div class="stat-label">总记录数</div>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon">📈</div>
+                            <div class="stat-info">
+                                <div class="stat-number" id="avg-success-rate">-</div>
+                                <div class="stat-label">平均成功率</div>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon">🎯</div>
+                            <div class="stat-info">
+                                <div class="stat-number" id="active-users">-</div>
+                                <div class="stat-label">活跃用户</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="charts-grid">
+                        <div class="chart-card">
+                            <h3>用户增长趋势</h3>
+                            <canvas id="user-growth-chart"></canvas>
+                        </div>
+                        <div class="chart-card">
+                            <h3>工作记录统计</h3>
+                            <canvas id="reports-chart"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="recent-activity">
+                        <h3>最近活动</h3>
+                        <div class="activity-list" id="recent-activity-list">
+                            <!-- 动态加载 -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 用户管理页面 -->
+                <div id="users-page" class="page">
+                    <div class="page-header">
+                        <h3>用户管理</h3>
+                        <div class="page-actions">
+                            <input type="text" id="user-search" placeholder="搜索用户..." class="search-input">
+                            <button class="btn btn-primary" onclick="refreshUsers()">刷新</button>
+                        </div>
+                    </div>
+                    <div class="table-container">
+                        <table class="data-table" id="users-table">
+                            <thead>
+                                <tr>
+                                    <th>用户ID</th>
+                                    <th>昵称</th>
+                                    <th>注册时间</th>
+                                    <th>记录数</th>
+                                    <th>最后活跃</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="users-table-body">
+                                <!-- 动态加载 -->
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="pagination" id="users-pagination">
+                        <!-- 分页控件 -->
+                    </div>
+                </div>
+
+                <!-- 工作记录页面 -->
+                <div id="reports-page" class="page">
+                    <div class="page-header">
+                        <h3>工作记录管理</h3>
+                        <div class="page-actions">
+                            <input type="date" id="date-filter" class="date-input">
+                            <select id="user-filter" class="select-input">
+                                <option value="">所有用户</option>
+                            </select>
+                            <button class="btn btn-primary" onclick="filterReports()">筛选</button>
+                        </div>
+                    </div>
+                    <div class="table-container">
+                        <table class="data-table" id="reports-table">
+                            <thead>
+                                <tr>
+                                    <th>日期</th>
+                                    <th>用户</th>
+                                    <th>记录数</th>
+                                    <th>成功数</th>
+                                    <th>失败数</th>
+                                    <th>成功率</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="reports-table-body">
+                                <!-- 动态加载 -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- 数据分析页面 -->
+                <div id="analytics-page" class="page">
+                    <div class="analytics-controls">
+                        <div class="date-range">
+                            <label>时间范围：</label>
+                            <input type="date" id="start-date">
+                            <span>至</span>
+                            <input type="date" id="end-date">
+                            <button class="btn btn-primary" onclick="updateAnalytics()">更新</button>
+                        </div>
+                    </div>
+                    
+                    <div class="analytics-grid">
+                        <div class="chart-card">
+                            <h3>成功率趋势</h3>
+                            <canvas id="success-rate-chart"></canvas>
+                        </div>
+                        <div class="chart-card">
+                            <h3>用户活跃度</h3>
+                            <canvas id="user-activity-chart"></canvas>
+                        </div>
+                        <div class="chart-card">
+                            <h3>数据分布</h3>
+                            <canvas id="data-distribution-chart"></canvas>
+                        </div>
+                        <div class="chart-card">
+                            <h3>部门统计</h3>
+                            <canvas id="department-chart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 数据导出页面 -->
+                <div id="export-page" class="page">
+                    <div class="export-options">
+                        <h3>数据导出</h3>
+                        <div class="export-form">
+                            <div class="form-group">
+                                <label>导出类型：</label>
+                                <select id="export-type">
+                                    <option value="all">全部数据</option>
+                                    <option value="users">用户数据</option>
+                                    <option value="reports">工作记录</option>
+                                    <option value="statistics">统计数据</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>时间范围：</label>
+                                <input type="date" id="export-start-date">
+                                <span>至</span>
+                                <input type="date" id="export-end-date">
+                            </div>
+                            <div class="form-group">
+                                <label>导出格式：</label>
+                                <select id="export-format">
+                                    <option value="excel">Excel (.xlsx)</option>
+                                    <option value="csv">CSV (.csv)</option>
+                                    <option value="json">JSON (.json)</option>
+                                </select>
+                            </div>
+                            <button class="btn btn-primary" onclick="exportData()">导出数据</button>
+                        </div>
+                    </div>
+                    
+                    <div class="export-history">
+                        <h3>导出历史</h3>
+                        <div class="history-list" id="export-history-list">
+                            <!-- 动态加载 -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 系统设置页面 -->
+                <div id="settings-page" class="page">
+                    <div class="settings-form">
+                        <h3>系统设置</h3>
+                        <div class="form-group">
+                            <label>系统名称：</label>
+                            <input type="text" id="system-name" value="工作记录管理系统">
+                        </div>
+                        <div class="form-group">
+                            <label>数据保留天数：</label>
+                            <input type="number" id="data-retention" value="365">
+                        </div>
+                        <div class="form-group">
+                            <label>自动备份：</label>
+                            <select id="auto-backup">
+                                <option value="daily">每日</option>
+                                <option value="weekly">每周</option>
+                                <option value="monthly">每月</option>
+                                <option value="disabled">禁用</option>
+                            </select>
+                        </div>
+                        <button class="btn btn-primary" onclick="saveSettings()">保存设置</button>
+                    </div>
                 </div>
             </div>
-        </header>
-
-        <!-- 主要内容区域 -->
-        <main class="admin-main">
-            <!-- 统计卡片区域 -->
-            <section class="stats-section">
-                <div class="stats-grid">
-                    <div class="stat-card">
-                        <div class="stat-icon">👥</div>
-                        <div class="stat-content">
-                            <div class="stat-number" id="totalUsers">0</div>
-                            <div class="stat-label">总用户数</div>
-                        </div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-icon">📝</div>
-                        <div class="stat-content">
-                            <div class="stat-number" id="totalRecords">0</div>
-                            <div class="stat-label">总记录数</div>
-                        </div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-icon">✅</div>
-                        <div class="stat-content">
-                            <div class="stat-number" id="totalSuccess">0</div>
-                            <div class="stat-label">成功记录</div>
-                        </div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-icon">📊</div>
-                        <div class="stat-content">
-                            <div class="stat-number" id="successRate">0%</div>
-                            <div class="stat-label">总体成功率</div>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            <!-- 图表区域 -->
-            <section class="charts-section">
-                <div class="charts-grid">
-                    <div class="chart-card">
-                        <h3>📈 用户成功率排行</h3>
-                        <canvas id="userRankChart"></canvas>
-                    </div>
-                    <div class="chart-card">
-                        <h3>📅 每日数据趋势</h3>
-                        <canvas id="dailyTrendChart"></canvas>
-                    </div>
-                </div>
-            </section>
-
-            <!-- 用户管理区域 -->
-            <section class="users-section">
-                <div class="section-header">
-                    <h2>👥 用户管理</h2>
-                    <div class="section-actions">
-                        <input type="text" id="userSearch" placeholder="搜索用户..." class="search-input">
-                        <select id="userSort" class="sort-select">
-                            <option value="successRate">按成功率排序</option>
-                            <option value="totalRecords">按记录数排序</option>
-                            <option value="userName">按姓名排序</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="users-table-container">
-                    <table class="users-table" id="usersTable">
-                        <thead>
-                            <tr>
-                                <th>用户姓名</th>
-                                <th>记录数</th>
-                                <th>成功数</th>
-                                <th>失败数</th>
-                                <th>成功率</th>
-                                <th>最后活跃</th>
-                                <th>操作</th>
-                            </tr>
-                        </thead>
-                        <tbody id="usersTableBody">
-                            <!-- 用户数据将在这里动态加载 -->
-                        </tbody>
-                    </table>
-                </div>
-            </section>
-
-            <!-- 记录管理区域 -->
-            <section class="records-section">
-                <div class="section-header">
-                    <h2>📋 记录管理</h2>
-                    <div class="section-actions">
-                        <input type="text" id="recordSearch" placeholder="搜索记录..." class="search-input">
-                        <input type="date" id="dateFilter" class="date-input">
-                        <select id="statusFilter" class="filter-select">
-                            <option value="">全部状态</option>
-                            <option value="success">成功</option>
-                            <option value="fail">失败</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="records-table-container">
-                    <table class="records-table" id="recordsTable">
-                        <thead>
-                            <tr>
-                                <th>用户</th>
-                                <th>日期</th>
-                                <th>工作内容</th>
-                                <th>数据量</th>
-                                <th>成功数</th>
-                                <th>失败数</th>
-                                <th>成功率</th>
-                                <th>备注</th>
-                                <th>操作</th>
-                            </tr>
-                        </thead>
-                        <tbody id="recordsTableBody">
-                            <!-- 记录数据将在这里动态加载 -->
-                        </tbody>
-                    </table>
-                </div>
-                <div class="pagination" id="recordsPagination">
-                    <!-- 分页控件将在这里动态生成 -->
-                </div>
-            </section>
-
-            <!-- 数据管理区域 -->
-            <section class="data-management-section">
-                <div class="section-header">
-                    <h2>🔧 数据管理</h2>
-                </div>
-                <div class="management-actions">
-                    <button id="checkDataBtn" class="btn btn-info">🔍 检查数据状态</button>
-                    <button id="migrateDataBtn" class="btn btn-warning">📦 执行数据迁移</button>
-                    <button id="backupDataBtn" class="btn btn-success">💾 备份数据</button>
-                    <button id="cleanDataBtn" class="btn btn-danger">🗑️ 清理无效数据</button>
-                </div>
-            </section>
         </main>
     </div>
 
     <!-- 加载提示 -->
-    <div id="loadingOverlay" class="loading-overlay">
-        <div class="loading-spinner"></div>
-        <div class="loading-text">加载中...</div>
+    <div id="loading" class="loading">
+        <div class="spinner"></div>
+        <div>加载中...</div>
     </div>
 
-    <!-- 模态框 -->
-    <div id="modal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3 id="modalTitle">标题</h3>
-                <button class="modal-close">&times;</button>
-            </div>
-            <div class="modal-body" id="modalBody">
-                <!-- 模态框内容 -->
-            </div>
-            <div class="modal-footer">
-                <button id="modalCancel" class="btn btn-secondary">取消</button>
-                <button id="modalConfirm" class="btn btn-primary">确认</button>
-            </div>
-        </div>
-    </div>
-
-    <script src="js/admin.js"></script>
+    <!-- 脚本 -->
+    <script src="./js/admin.js"></script>
 </body>
 </html>

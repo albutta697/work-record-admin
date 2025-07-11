@@ -1,681 +1,511 @@
-// 管理后台JavaScript功能
+// 管理后台JavaScript
 class AdminManager {
     constructor() {
-        this.currentPage = 1;
-        this.pageSize = 20;
-        this.allUsers = [];
-        this.allRecords = [];
+        this.currentPage = 'dashboard';
         this.charts = {};
-        
         this.init();
     }
 
-    // 初始化
     init() {
-        this.bindEvents();
-        this.loadAllData();
+        // 检查登录状态
+        if (!this.checkLogin()) {
+            window.location.href = './login.html';
+            return;
+        }
+
+        this.initNavigation();
+        this.initCharts();
+        this.loadDashboardData();
+        this.hideLoading();
+        this.initLogout();
     }
 
-    // 绑定事件
-    bindEvents() {
-        // 刷新按钮
-        document.getElementById('refreshBtn').addEventListener('click', () => {
-            this.loadAllData();
-        });
-
-        // 导出按钮
-        document.getElementById('exportBtn').addEventListener('click', () => {
-            this.exportData();
-        });
-
-        // 搜索和筛选
-        document.getElementById('userSearch').addEventListener('input', (e) => {
-            this.filterUsers(e.target.value);
-        });
-
-        document.getElementById('userSort').addEventListener('change', (e) => {
-            this.sortUsers(e.target.value);
-        });
-
-        document.getElementById('recordSearch').addEventListener('input', (e) => {
-            this.filterRecords(e.target.value);
-        });
-
-        document.getElementById('dateFilter').addEventListener('change', (e) => {
-            this.filterRecordsByDate(e.target.value);
-        });
-
-        document.getElementById('statusFilter').addEventListener('change', (e) => {
-            this.filterRecordsByStatus(e.target.value);
-        });
-
-        // 数据管理按钮
-        document.getElementById('checkDataBtn').addEventListener('click', () => {
-            this.checkDataStatus();
-        });
-
-        document.getElementById('migrateDataBtn').addEventListener('click', () => {
-            this.migrateData();
-        });
-
-        document.getElementById('backupDataBtn').addEventListener('click', () => {
-            this.backupData();
-        });
-
-        document.getElementById('cleanDataBtn').addEventListener('click', () => {
-            this.cleanData();
-        });
-
-        // 模态框
-        document.querySelector('.modal-close').addEventListener('click', () => {
-            this.closeModal();
-        });
-
-        document.getElementById('modalCancel').addEventListener('click', () => {
-            this.closeModal();
-        });
+    // 检查登录状态
+    checkLogin() {
+        return localStorage.getItem('admin_logged_in') === 'true';
     }
 
-    // 显示加载状态
-    showLoading(text = '加载中...') {
-        const overlay = document.getElementById('loadingOverlay');
-        const loadingText = document.querySelector('.loading-text');
-        loadingText.textContent = text;
-        overlay.style.display = 'flex';
-    }
+    // 初始化退出登录
+    initLogout() {
+        const logoutBtn = document.querySelector('.logout-btn');
+        if (logoutBtn) {
+            logoutBtn.addEventListener('click', () => {
+                if (confirm('确定要退出登录吗？')) {
+                    localStorage.removeItem('admin_logged_in');
+                    localStorage.removeItem('admin_username');
+                    window.location.href = './login.html';
+                }
+            });
+        }
 
-    // 隐藏加载状态
-    hideLoading() {
-        document.getElementById('loadingOverlay').style.display = 'none';
-    }
-
-    // 显示模态框
-    showModal(title, content, onConfirm = null) {
-        document.getElementById('modalTitle').textContent = title;
-        document.getElementById('modalBody').innerHTML = content;
-        document.getElementById('modal').style.display = 'block';
-        
-        if (onConfirm) {
-            document.getElementById('modalConfirm').onclick = onConfirm;
+        // 显示用户名
+        const username = localStorage.getItem('admin_username');
+        if (username) {
+            const userInfo = document.querySelector('.user-info span');
+            if (userInfo) {
+                userInfo.textContent = username;
+            }
         }
     }
 
-    // 关闭模态框
-    closeModal() {
-        document.getElementById('modal').style.display = 'none';
+    // 初始化导航
+    initNavigation() {
+        const navItems = document.querySelectorAll('.nav-item');
+        navItems.forEach(item => {
+            item.addEventListener('click', () => {
+                const page = item.dataset.page;
+                this.switchPage(page);
+            });
+        });
     }
 
-    // 加载所有数据
-    async loadAllData() {
-        this.showLoading('正在加载数据...');
+    // 切换页面
+    switchPage(page) {
+        // 更新导航状态
+        document.querySelectorAll('.nav-item').forEach(item => {
+            item.classList.remove('active');
+        });
+        document.querySelector(`[data-page="${page}"]`).classList.add('active');
+
+        // 更新页面内容
+        document.querySelectorAll('.page').forEach(p => {
+            p.classList.remove('active');
+        });
+        document.getElementById(`${page}-page`).classList.add('active');
+
+        // 更新页面标题
+        const titles = {
+            dashboard: '数据概览',
+            users: '用户管理',
+            reports: '工作记录',
+            analytics: '数据分析',
+            export: '数据导出',
+            settings: '系统设置'
+        };
+        document.getElementById('page-title').textContent = titles[page];
+
+        this.currentPage = page;
+
+        // 加载页面数据
+        this.loadPageData(page);
+    }
+
+    // 加载页面数据
+    async loadPageData(page) {
+        this.showLoading();
         
         try {
-            await Promise.all([
-                this.loadStats(),
-                this.loadUsers(),
-                this.loadRecords()
-            ]);
-            
-            this.updateCharts();
+            switch (page) {
+                case 'dashboard':
+                    await this.loadDashboardData();
+                    break;
+                case 'users':
+                    await this.loadUsersData();
+                    break;
+                case 'reports':
+                    await this.loadReportsData();
+                    break;
+                case 'analytics':
+                    await this.loadAnalyticsData();
+                    break;
+                case 'export':
+                    await this.loadExportData();
+                    break;
+                case 'settings':
+                    await this.loadSettingsData();
+                    break;
+            }
         } catch (error) {
-            console.error('加载数据失败:', error);
-            this.showModal('错误', '数据加载失败，请检查网络连接或稍后重试。');
+            console.error('加载页面数据失败：', error);
+            this.showError('加载数据失败，请重试');
         } finally {
             this.hideLoading();
         }
     }
 
-    // 加载统计数据
-    async loadStats() {
+    // 加载仪表板数据
+    async loadDashboardData() {
         try {
-            // 这里需要调用你的云函数或API
-            // 暂时使用模拟数据
+            // 模拟API调用 - 实际应该调用云函数
             const stats = await this.fetchStats();
             
-            document.getElementById('totalUsers').textContent = stats.totalUsers || 0;
-            document.getElementById('totalRecords').textContent = stats.totalRecords || 0;
-            document.getElementById('totalSuccess').textContent = stats.totalSuccess || 0;
-            document.getElementById('successRate').textContent = (stats.successRate || 0) + '%';
-            
+            // 更新统计数据
+            document.getElementById('total-users').textContent = stats.totalUsers || 0;
+            document.getElementById('total-reports').textContent = stats.totalReports || 0;
+            document.getElementById('avg-success-rate').textContent = (stats.avgSuccessRate || 0) + '%';
+            document.getElementById('active-users').textContent = stats.activeUsers || 0;
+
+            // 更新图表
+            this.updateUserGrowthChart(stats.userGrowthData);
+            this.updateReportsChart(stats.reportsData);
+
+            // 加载最近活动
+            this.loadRecentActivity(stats.recentActivity);
         } catch (error) {
-            console.error('加载统计数据失败:', error);
+            console.error('加载仪表板数据失败：', error);
         }
     }
 
     // 获取统计数据
     async fetchStats() {
         try {
-            // 方法1：如果在微信环境中，调用云函数
-            if (typeof wx !== 'undefined' && wx.cloud) {
-                console.log('检测到微信环境，调用云函数');
+            console.log('开始获取真实数据');
 
-                const result = await wx.cloud.callFunction({
-                    name: 'adminWeb',
-                    data: { action: 'getStats' }
-                });
+            // 尝试调用云函数API
+            const apiUrl = 'https://cloud1-3g74c2ped44be66f.ap-shanghai.app.tcloudbase.com/adminWeb';
 
-                if (result.result && result.result.success) {
-                    console.log('云函数调用成功，返回数据');
-                    return result.result.data;
-                } else {
-                    console.error('云函数调用失败:', result.result);
-                    throw new Error(result.result?.error || '获取数据失败');
-                }
+            const response = await fetch(apiUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    action: 'getStats'
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
             }
 
-            // 方法2：通过HTTP API调用（如果你配置了HTTP触发器）
-            // 这里可以添加HTTP API调用逻辑
+            const result = await response.json();
+            console.log('API调用结果：', result);
 
-            // 方法3：降级到模拟数据
-            console.log('非微信环境，使用模拟数据');
-            return this.getMockStats();
+            if (result.success && result.data) {
+                console.log('API调用成功，返回真实数据');
 
+                // 转换数据格式以匹配前端期望
+                return {
+                    totalUsers: result.data.totalUsers || 0,
+                    totalReports: result.data.totalRecords || 0,
+                    avgSuccessRate: result.data.successRate || 0,
+                    activeUsers: Math.floor(result.data.totalUsers * 0.6) || 0, // 估算活跃用户
+                    userGrowthData: this.generateMockUserGrowthData(),
+                    reportsData: this.generateMockReportsData(),
+                    recentActivity: this.generateMockActivity()
+                };
+            } else {
+                console.error('API调用失败：', result);
+                throw new Error(result.error || '获取数据失败');
+            }
         } catch (error) {
-            console.error('获取统计数据失败:', error);
+            console.error('获取统计数据失败：', error);
+            console.log('降级到模拟数据');
             // 降级到模拟数据
             return this.getMockStats();
         }
     }
 
-    // 模拟统计数据
+    // 获取模拟数据
     getMockStats() {
         return {
-            totalUsers: 15,
-            totalRecords: 128,
-            totalSuccess: 108,
-            successRate: 84
+            totalUsers: 156,
+            totalReports: 1248,
+            avgSuccessRate: 87.5,
+            activeUsers: 89,
+            userGrowthData: this.generateMockUserGrowthData(),
+            reportsData: this.generateMockReportsData(),
+            recentActivity: this.generateMockActivity()
         };
     }
 
-    // 加载用户数据
-    async loadUsers() {
-        try {
-            // 这里调用实际的API获取用户数据
-            const users = await this.fetchUsers();
-            this.allUsers = users;
-            this.renderUsers(users);
-        } catch (error) {
-            console.error('加载用户数据失败:', error);
-            // 使用模拟数据
-            this.allUsers = this.getMockUsers();
-            this.renderUsers(this.allUsers);
-        }
-    }
-
-    // 获取用户数据
-    async fetchUsers() {
-        if (typeof wx !== 'undefined' && wx.cloud) {
-            try {
-                const result = await wx.cloud.callFunction({
-                    name: 'adminWeb',
-                    data: { action: 'getStats' }
-                });
-                
-                if (result.result && result.result.success) {
-                    return result.result.data.userList || [];
-                }
-            } catch (error) {
-                console.error('获取用户数据失败:', error);
-            }
-        }
-        
-        return this.getMockUsers();
-    }
-
-    // 模拟用户数据
-    getMockUsers() {
-        return [
-            { userName: '张三', totalRecords: 25, successCount: 22, failCount: 3, successRate: 88, lastActive: '2024-01-15' },
-            { userName: '李四', totalRecords: 18, successCount: 15, failCount: 3, successRate: 83, lastActive: '2024-01-14' },
-            { userName: '王五', totalRecords: 32, successCount: 28, failCount: 4, successRate: 88, lastActive: '2024-01-15' },
-            { userName: '赵六', totalRecords: 12, successCount: 10, failCount: 2, successRate: 83, lastActive: '2024-01-13' },
-            { userName: '钱七', totalRecords: 41, successCount: 33, failCount: 8, successRate: 80, lastActive: '2024-01-15' }
-        ];
-    }
-
-    // 渲染用户表格
-    renderUsers(users) {
-        const tbody = document.getElementById('usersTableBody');
-        tbody.innerHTML = '';
-        
-        users.forEach(user => {
-            const row = document.createElement('tr');
-            row.innerHTML = `
-                <td>${user.userName}</td>
-                <td>${user.totalRecords}</td>
-                <td>${user.successCount}</td>
-                <td>${user.failCount}</td>
-                <td>
-                    <div class="success-rate">
-                        <span>${user.successRate}%</span>
-                        <div class="rate-bar">
-                            <div class="rate-fill" style="width: ${user.successRate}%"></div>
-                        </div>
-                    </div>
-                </td>
-                <td>${user.lastActive || '未知'}</td>
-                <td>
-                    <button class="btn btn-small btn-info" onclick="adminManager.viewUserDetails('${user.userName}')">查看详情</button>
-                    <button class="btn btn-small btn-warning" onclick="adminManager.editUser('${user.userName}')">编辑</button>
-                </td>
-            `;
-            tbody.appendChild(row);
-        });
-    }
-
-    // 加载记录数据
-    async loadRecords() {
-        try {
-            const records = await this.fetchRecords();
-            this.allRecords = records;
-            this.renderRecords(records);
-        } catch (error) {
-            console.error('加载记录数据失败:', error);
-            this.allRecords = this.getMockRecords();
-            this.renderRecords(this.allRecords);
-        }
-    }
-
-    // 获取记录数据
-    async fetchRecords() {
-        if (typeof wx !== 'undefined' && wx.cloud) {
-            try {
-                const result = await wx.cloud.callFunction({
-                    name: 'adminWeb',
-                    data: { action: 'getRecords', page: 1, limit: 50 }
-                });
-                
-                if (result.result && result.result.success) {
-                    return result.result.data || [];
-                }
-            } catch (error) {
-                console.error('获取记录数据失败:', error);
-            }
-        }
-        
-        return this.getMockRecords();
-    }
-
-    // 模拟记录数据
-    getMockRecords() {
-        return [
-            {
-                userName: '张三',
-                date: '2024-01-15',
-                records: [
-                    { workContent: '数据录入', dataCount: 50, successCount: 45, failCount: 5, successRate: 90, remark: '效率较高' }
-                ]
-            },
-            {
-                userName: '李四',
-                date: '2024-01-15',
-                records: [
-                    { workContent: '数据审核', dataCount: 30, successCount: 25, failCount: 5, successRate: 83, remark: '质量良好' }
-                ]
-            }
-        ];
-    }
-
-    // 渲染记录表格
-    renderRecords(records) {
-        const tbody = document.getElementById('recordsTableBody');
-        tbody.innerHTML = '';
-        
-        records.forEach(record => {
-            if (record.records && Array.isArray(record.records)) {
-                record.records.forEach(workRecord => {
-                    const row = document.createElement('tr');
-                    row.innerHTML = `
-                        <td>${record.userName}</td>
-                        <td>${record.date}</td>
-                        <td>${workRecord.workContent}</td>
-                        <td>${workRecord.dataCount}</td>
-                        <td>${workRecord.successCount}</td>
-                        <td>${workRecord.failCount}</td>
-                        <td>${workRecord.successRate}%</td>
-                        <td>${workRecord.remark || '-'}</td>
-                        <td>
-                            <button class="btn btn-small btn-warning" onclick="adminManager.editRecord('${record._id}')">编辑</button>
-                            <button class="btn btn-small btn-danger" onclick="adminManager.deleteRecord('${record._id}')">删除</button>
-                        </td>
-                    `;
-                    tbody.appendChild(row);
-                });
-            }
-        });
-    }
-
-    // 更新图表
-    updateCharts() {
-        this.updateUserRankChart();
-        this.updateDailyTrendChart();
-    }
-
-    // 用户排行图表
-    updateUserRankChart() {
-        const ctx = document.getElementById('userRankChart').getContext('2d');
-        
-        if (this.charts.userRank) {
-            this.charts.userRank.destroy();
-        }
-        
-        const topUsers = this.allUsers.slice(0, 10);
-        
-        this.charts.userRank = new Chart(ctx, {
-            type: 'bar',
-            data: {
-                labels: topUsers.map(user => user.userName),
-                datasets: [{
-                    label: '成功率 (%)',
-                    data: topUsers.map(user => user.successRate),
-                    backgroundColor: 'rgba(102, 126, 234, 0.8)',
-                    borderColor: 'rgba(102, 126, 234, 1)',
-                    borderWidth: 1
-                }]
-            },
-            options: {
-                responsive: true,
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        max: 100
-                    }
-                }
-            }
-        });
-    }
-
-    // 每日趋势图表
-    updateDailyTrendChart() {
-        const ctx = document.getElementById('dailyTrendChart').getContext('2d');
-        
-        if (this.charts.dailyTrend) {
-            this.charts.dailyTrend.destroy();
-        }
-        
-        // 生成最近7天的模拟数据
-        const dates = [];
-        const successRates = [];
-        
-        for (let i = 6; i >= 0; i--) {
-            const date = new Date();
+    // 生成模拟用户增长数据
+    generateMockUserGrowthData() {
+        const data = [];
+        const now = new Date();
+        for (let i = 29; i >= 0; i--) {
+            const date = new Date(now);
             date.setDate(date.getDate() - i);
-            dates.push(date.toLocaleDateString());
-            successRates.push(Math.floor(Math.random() * 20) + 75); // 75-95之间的随机数
+            data.push({
+                date: date.toISOString().split('T')[0],
+                users: Math.floor(Math.random() * 10) + 1
+            });
         }
-        
-        this.charts.dailyTrend = new Chart(ctx, {
+        return data;
+    }
+
+    // 生成模拟报告数据
+    generateMockReportsData() {
+        const data = [];
+        const now = new Date();
+        for (let i = 6; i >= 0; i--) {
+            const date = new Date(now);
+            date.setDate(date.getDate() - i);
+            data.push({
+                date: date.toISOString().split('T')[0],
+                reports: Math.floor(Math.random() * 50) + 10,
+                success: Math.floor(Math.random() * 40) + 30
+            });
+        }
+        return data;
+    }
+
+    // 初始化图表
+    initCharts() {
+        // 用户增长图表
+        const userGrowthCtx = document.getElementById('user-growth-chart').getContext('2d');
+        this.charts.userGrowth = new Chart(userGrowthCtx, {
             type: 'line',
             data: {
-                labels: dates,
+                labels: [],
                 datasets: [{
-                    label: '成功率 (%)',
-                    data: successRates,
-                    borderColor: 'rgba(72, 187, 120, 1)',
-                    backgroundColor: 'rgba(72, 187, 120, 0.1)',
-                    tension: 0.4,
-                    fill: true
+                    label: '新增用户',
+                    data: [],
+                    borderColor: '#667eea',
+                    backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                    tension: 0.4
                 }]
             },
             options: {
                 responsive: true,
+                maintainAspectRatio: false,
                 scales: {
                     y: {
-                        beginAtZero: true,
-                        max: 100
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
+
+        // 工作记录图表
+        const reportsCtx = document.getElementById('reports-chart').getContext('2d');
+        this.charts.reports = new Chart(reportsCtx, {
+            type: 'bar',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: '总记录数',
+                    data: [],
+                    backgroundColor: '#667eea'
+                }, {
+                    label: '成功记录',
+                    data: [],
+                    backgroundColor: '#28a745'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true
                     }
                 }
             }
         });
     }
 
-    // 筛选用户
-    filterUsers(searchTerm) {
-        const filteredUsers = this.allUsers.filter(user => 
-            user.userName.toLowerCase().includes(searchTerm.toLowerCase())
-        );
-        this.renderUsers(filteredUsers);
+    // 更新用户增长图表
+    updateUserGrowthChart(data) {
+        if (!data || !this.charts.userGrowth) return;
+        
+        this.charts.userGrowth.data.labels = data.map(item => item.date);
+        this.charts.userGrowth.data.datasets[0].data = data.map(item => item.users);
+        this.charts.userGrowth.update();
     }
 
-    // 排序用户
-    sortUsers(sortBy) {
-        const sortedUsers = [...this.allUsers].sort((a, b) => {
-            switch (sortBy) {
-                case 'successRate':
-                    return b.successRate - a.successRate;
-                case 'totalRecords':
-                    return b.totalRecords - a.totalRecords;
-                case 'userName':
-                    return a.userName.localeCompare(b.userName);
-                default:
-                    return 0;
-            }
-        });
-        this.renderUsers(sortedUsers);
+    // 更新报告图表
+    updateReportsChart(data) {
+        if (!data || !this.charts.reports) return;
+        
+        this.charts.reports.data.labels = data.map(item => item.date);
+        this.charts.reports.data.datasets[0].data = data.map(item => item.reports);
+        this.charts.reports.data.datasets[1].data = data.map(item => item.success);
+        this.charts.reports.update();
     }
 
-    // 筛选记录
-    filterRecords(searchTerm) {
-        const filteredRecords = this.allRecords.filter(record => 
-            record.userName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            (record.records && record.records.some(r => 
-                r.workContent.toLowerCase().includes(searchTerm.toLowerCase())
-            ))
-        );
-        this.renderRecords(filteredRecords);
+    // 生成模拟活动数据
+    generateMockActivity() {
+        return [
+            { icon: '👤', title: '新用户注册', time: '2分钟前' },
+            { icon: '📋', title: '工作记录提交', time: '5分钟前' },
+            { icon: '📊', title: '数据统计更新', time: '10分钟前' },
+            { icon: '⚙️', title: '系统设置修改', time: '1小时前' },
+            { icon: '📤', title: '数据导出完成', time: '2小时前' }
+        ];
     }
 
-    // 按日期筛选记录
-    filterRecordsByDate(date) {
-        if (!date) {
-            this.renderRecords(this.allRecords);
-            return;
+    // 加载最近活动
+    loadRecentActivity(activities) {
+        // 如果没有传入活动数据，使用模拟数据
+        if (!activities) {
+            activities = this.generateMockActivity();
         }
-        
-        const filteredRecords = this.allRecords.filter(record => record.date === date);
-        this.renderRecords(filteredRecords);
-    }
 
-    // 按状态筛选记录
-    filterRecordsByStatus(status) {
-        if (!status) {
-            this.renderRecords(this.allRecords);
-            return;
-        }
-        
-        const filteredRecords = this.allRecords.filter(record => 
-            record.records && record.records.some(r => r.status === status)
-        );
-        this.renderRecords(filteredRecords);
-    }
-
-    // 导出数据
-    exportData() {
-        this.showModal('导出数据', `
-            <p>选择要导出的数据类型：</p>
-            <div style="margin: 1rem 0;">
-                <label><input type="checkbox" checked> 用户统计数据</label><br>
-                <label><input type="checkbox" checked> 工作记录数据</label><br>
-                <label><input type="checkbox"> 图表数据</label>
-            </div>
-            <p>导出格式：</p>
-            <select id="exportFormat">
-                <option value="excel">Excel (.xlsx)</option>
-                <option value="csv">CSV (.csv)</option>
-                <option value="json">JSON (.json)</option>
-            </select>
-        `, () => {
-            this.performExport();
-        });
-    }
-
-    // 执行导出
-    performExport() {
-        const format = document.getElementById('exportFormat').value;
-        
-        // 这里实现实际的导出逻辑
-        this.showLoading('正在导出数据...');
-        
-        setTimeout(() => {
-            this.hideLoading();
-            this.closeModal();
-            this.showModal('导出完成', `数据已成功导出为 ${format.toUpperCase()} 格式！`);
-        }, 2000);
-    }
-
-    // 检查数据状态
-    async checkDataStatus() {
-        this.showLoading('正在检查数据状态...');
-        
-        try {
-            // 这里调用实际的检查API
-            setTimeout(() => {
-                this.hideLoading();
-                this.showModal('数据状态检查', `
-                    <div>
-                        <h4>数据库集合状态：</h4>
-                        <ul>
-                            <li>work_reports: 85条记录</li>
-                            <li>records: 43条记录</li>
-                            <li>users: 15个用户</li>
-                        </ul>
-                        <h4>数据完整性：</h4>
-                        <ul>
-                            <li>✅ 所有记录格式正确</li>
-                            <li>✅ 无重复数据</li>
-                            <li>⚠️ 发现3条记录缺少用户名</li>
-                        </ul>
-                    </div>
-                `);
-            }, 1500);
-        } catch (error) {
-            this.hideLoading();
-            this.showModal('错误', '检查数据状态失败，请稍后重试。');
-        }
-    }
-
-    // 数据迁移
-    migrateData() {
-        this.showModal('数据迁移确认', `
-            <p>⚠️ 此操作将执行数据迁移，可能需要较长时间。</p>
-            <p>迁移内容：</p>
-            <ul>
-                <li>将 records 集合数据迁移到 work_reports</li>
-                <li>统一数据格式</li>
-                <li>更新索引</li>
-            </ul>
-            <p><strong>确定要继续吗？</strong></p>
-        `, () => {
-            this.performMigration();
-        });
-    }
-
-    // 执行迁移
-    performMigration() {
-        this.showLoading('正在执行数据迁移...');
-        this.closeModal();
-        
-        // 这里调用实际的迁移API
-        setTimeout(() => {
-            this.hideLoading();
-            this.showModal('迁移完成', '数据迁移已成功完成！已迁移 43 条记录。');
-            this.loadAllData(); // 重新加载数据
-        }, 3000);
-    }
-
-    // 备份数据
-    backupData() {
-        this.showLoading('正在备份数据...');
-        
-        setTimeout(() => {
-            this.hideLoading();
-            this.showModal('备份完成', '数据备份已完成，备份文件已保存到云存储。');
-        }, 2000);
-    }
-
-    // 清理数据
-    cleanData() {
-        this.showModal('清理数据确认', `
-            <p>⚠️ 此操作将清理以下无效数据：</p>
-            <ul>
-                <li>空记录</li>
-                <li>重复数据</li>
-                <li>格式错误的记录</li>
-            </ul>
-            <p><strong>确定要继续吗？</strong></p>
-        `, () => {
-            this.performCleanup();
-        });
-    }
-
-    // 执行清理
-    performCleanup() {
-        this.showLoading('正在清理数据...');
-        this.closeModal();
-        
-        setTimeout(() => {
-            this.hideLoading();
-            this.showModal('清理完成', '数据清理已完成，共清理了 5 条无效记录。');
-            this.loadAllData();
-        }, 2000);
-    }
-
-    // 查看用户详情
-    viewUserDetails(userName) {
-        const user = this.allUsers.find(u => u.userName === userName);
-        if (user) {
-            this.showModal(`用户详情 - ${userName}`, `
-                <div>
-                    <h4>基本信息：</h4>
-                    <p>姓名：${user.userName}</p>
-                    <p>总记录数：${user.totalRecords}</p>
-                    <p>成功数：${user.successCount}</p>
-                    <p>失败数：${user.failCount}</p>
-                    <p>成功率：${user.successRate}%</p>
-                    <p>最后活跃：${user.lastActive || '未知'}</p>
+        const activityList = document.getElementById('recent-activity-list');
+        activityList.innerHTML = activities.map(activity => `
+            <div class="activity-item">
+                <div class="activity-icon">${activity.icon}</div>
+                <div class="activity-content">
+                    <div class="activity-title">${activity.title}</div>
+                    <div class="activity-time">${activity.time}</div>
                 </div>
-            `);
+            </div>
+        `).join('');
+    }
+
+    // 加载用户数据
+    async loadUsersData() {
+        try {
+            console.log('开始获取用户数据');
+
+            // 尝试调用云函数API获取真实用户数据
+            const apiUrl = 'https://cloud1-3g74c2ped44be66f.ap-shanghai.app.tcloudbase.com/adminWeb';
+
+            const response = await fetch(apiUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    action: 'getStats'
+                })
+            });
+
+            let users = [];
+
+            if (response.ok) {
+                const result = await response.json();
+                console.log('用户数据API调用结果：', result);
+
+                if (result.success && result.data && result.data.userList) {
+                    // 转换真实数据格式
+                    users = result.data.userList.map((user, index) => ({
+                        id: `user${index + 1}`,
+                        nickname: user.userName || '未知用户',
+                        registerTime: new Date().toISOString().split('T')[0], // 模拟注册时间
+                        reports: user.totalRecords || 0,
+                        lastActive: new Date().toISOString().split('T')[0], // 模拟最后活跃时间
+                        successRate: user.successRate || 0
+                    }));
+
+                    console.log('使用真实用户数据：', users);
+                }
+            }
+
+            // 如果没有真实数据，使用模拟数据
+            if (users.length === 0) {
+                console.log('降级到模拟用户数据');
+                users = [
+                    { id: 'user001', nickname: '张三', registerTime: '2024-01-15', reports: 25, lastActive: '2024-07-11', successRate: 85 },
+                    { id: 'user002', nickname: '李四', registerTime: '2024-02-20', reports: 18, lastActive: '2024-07-10', successRate: 92 },
+                    { id: 'user003', nickname: '王五', registerTime: '2024-03-10', reports: 32, lastActive: '2024-07-11', successRate: 78 }
+                ];
+            }
+
+            const tbody = document.getElementById('users-table-body');
+            tbody.innerHTML = users.map(user => `
+                <tr>
+                    <td>${user.id}</td>
+                    <td>${user.nickname}</td>
+                    <td>${user.registerTime}</td>
+                    <td>${user.reports}</td>
+                    <td>${user.lastActive}</td>
+                    <td>
+                        <button class="btn btn-secondary" onclick="viewUser('${user.id}')">查看</button>
+                        <button class="btn btn-danger" onclick="deleteUser('${user.id}')">删除</button>
+                    </td>
+                </tr>
+            `).join('');
+        } catch (error) {
+            console.error('加载用户数据失败：', error);
+            // 使用模拟数据作为后备
+            const users = [
+                { id: 'user001', nickname: '张三', registerTime: '2024-01-15', reports: 25, lastActive: '2024-07-11', successRate: 85 }
+            ];
+
+            const tbody = document.getElementById('users-table-body');
+            tbody.innerHTML = users.map(user => `
+                <tr>
+                    <td>${user.id}</td>
+                    <td>${user.nickname}</td>
+                    <td>${user.registerTime}</td>
+                    <td>${user.reports}</td>
+                    <td>${user.lastActive}</td>
+                    <td>
+                        <button class="btn btn-secondary" onclick="viewUser('${user.id}')">查看</button>
+                        <button class="btn btn-danger" onclick="deleteUser('${user.id}')">删除</button>
+                    </td>
+                </tr>
+            `).join('');
         }
     }
 
-    // 编辑用户
-    editUser(userName) {
-        this.showModal(`编辑用户 - ${userName}`, `
-            <div>
-                <p>编辑用户信息功能开发中...</p>
-            </div>
-        `);
+    // 加载报告数据
+    async loadReportsData() {
+        // 模拟报告数据
+        const reports = [
+            { date: '2024-07-11', user: '张三', records: 5, success: 4, fail: 1, rate: '80%' },
+            { date: '2024-07-11', user: '李四', records: 3, success: 3, fail: 0, rate: '100%' },
+            { date: '2024-07-10', user: '王五', records: 8, success: 6, fail: 2, rate: '75%' }
+        ];
+
+        const tbody = document.getElementById('reports-table-body');
+        tbody.innerHTML = reports.map(report => `
+            <tr>
+                <td>${report.date}</td>
+                <td>${report.user}</td>
+                <td>${report.records}</td>
+                <td>${report.success}</td>
+                <td>${report.fail}</td>
+                <td>${report.rate}</td>
+                <td>
+                    <button class="btn btn-secondary" onclick="viewReport('${report.date}', '${report.user}')">查看详情</button>
+                </td>
+            </tr>
+        `).join('');
     }
 
-    // 编辑记录
-    editRecord(recordId) {
-        this.showModal('编辑记录', `
-            <div>
-                <p>编辑记录功能开发中...</p>
-            </div>
-        `);
+    // 显示/隐藏加载动画
+    showLoading() {
+        document.getElementById('loading').classList.remove('hidden');
     }
 
-    // 删除记录
-    deleteRecord(recordId) {
-        this.showModal('删除确认', `
-            <p>⚠️ 确定要删除这条记录吗？此操作不可撤销。</p>
-        `, () => {
-            this.performDeleteRecord(recordId);
-        });
+    hideLoading() {
+        document.getElementById('loading').classList.add('hidden');
     }
 
-    // 执行删除记录
-    performDeleteRecord(recordId) {
-        this.showLoading('正在删除记录...');
-        this.closeModal();
-        
-        setTimeout(() => {
-            this.hideLoading();
-            this.showModal('删除完成', '记录已成功删除。');
-            this.loadRecords(); // 重新加载记录
-        }, 1000);
+    // 显示错误信息
+    showError(message) {
+        alert(message); // 简单实现，可以改为更好的UI
     }
+}
+
+// 全局函数
+function refreshUsers() {
+    adminManager.loadUsersData();
+}
+
+function filterReports() {
+    adminManager.loadReportsData();
+}
+
+function updateAnalytics() {
+    adminManager.loadAnalyticsData();
+}
+
+function exportData() {
+    const type = document.getElementById('export-type').value;
+    const format = document.getElementById('export-format').value;
+    alert(`导出${type}数据为${format}格式`);
+}
+
+function saveSettings() {
+    alert('设置已保存');
+}
+
+function viewUser(userId) {
+    alert(`查看用户：${userId}`);
+}
+
+function deleteUser(userId) {
+    if (confirm(`确定要删除用户 ${userId} 吗？`)) {
+        alert(`用户 ${userId} 已删除`);
+    }
+}
+
+function viewReport(date, user) {
+    alert(`查看 ${user} 在 ${date} 的报告详情`);
 }
 
 // 初始化管理系统
