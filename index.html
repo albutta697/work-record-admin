@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>工作记录管理后台</title>
+    <link rel="stylesheet" href="css/admin.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="admin-container">
+        <!-- 顶部导航 -->
+        <header class="admin-header">
+            <div class="header-content">
+                <h1>📊 工作记录管理后台</h1>
+                <div class="header-actions">
+                    <button id="refreshBtn" class="btn btn-primary">🔄 刷新数据</button>
+                    <button id="exportBtn" class="btn btn-secondary">📥 导出数据</button>
+                </div>
+            </div>
+        </header>
+
+        <!-- 主要内容区域 -->
+        <main class="admin-main">
+            <!-- 统计卡片区域 -->
+            <section class="stats-section">
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon">👥</div>
+                        <div class="stat-content">
+                            <div class="stat-number" id="totalUsers">0</div>
+                            <div class="stat-label">总用户数</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">📝</div>
+                        <div class="stat-content">
+                            <div class="stat-number" id="totalRecords">0</div>
+                            <div class="stat-label">总记录数</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">✅</div>
+                        <div class="stat-content">
+                            <div class="stat-number" id="totalSuccess">0</div>
+                            <div class="stat-label">成功记录</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">📊</div>
+                        <div class="stat-content">
+                            <div class="stat-number" id="successRate">0%</div>
+                            <div class="stat-label">总体成功率</div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 图表区域 -->
+            <section class="charts-section">
+                <div class="charts-grid">
+                    <div class="chart-card">
+                        <h3>📈 用户成功率排行</h3>
+                        <canvas id="userRankChart"></canvas>
+                    </div>
+                    <div class="chart-card">
+                        <h3>📅 每日数据趋势</h3>
+                        <canvas id="dailyTrendChart"></canvas>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 用户管理区域 -->
+            <section class="users-section">
+                <div class="section-header">
+                    <h2>👥 用户管理</h2>
+                    <div class="section-actions">
+                        <input type="text" id="userSearch" placeholder="搜索用户..." class="search-input">
+                        <select id="userSort" class="sort-select">
+                            <option value="successRate">按成功率排序</option>
+                            <option value="totalRecords">按记录数排序</option>
+                            <option value="userName">按姓名排序</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="users-table-container">
+                    <table class="users-table" id="usersTable">
+                        <thead>
+                            <tr>
+                                <th>用户姓名</th>
+                                <th>记录数</th>
+                                <th>成功数</th>
+                                <th>失败数</th>
+                                <th>成功率</th>
+                                <th>最后活跃</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="usersTableBody">
+                            <!-- 用户数据将在这里动态加载 -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- 记录管理区域 -->
+            <section class="records-section">
+                <div class="section-header">
+                    <h2>📋 记录管理</h2>
+                    <div class="section-actions">
+                        <input type="text" id="recordSearch" placeholder="搜索记录..." class="search-input">
+                        <input type="date" id="dateFilter" class="date-input">
+                        <select id="statusFilter" class="filter-select">
+                            <option value="">全部状态</option>
+                            <option value="success">成功</option>
+                            <option value="fail">失败</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="records-table-container">
+                    <table class="records-table" id="recordsTable">
+                        <thead>
+                            <tr>
+                                <th>用户</th>
+                                <th>日期</th>
+                                <th>工作内容</th>
+                                <th>数据量</th>
+                                <th>成功数</th>
+                                <th>失败数</th>
+                                <th>成功率</th>
+                                <th>备注</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="recordsTableBody">
+                            <!-- 记录数据将在这里动态加载 -->
+                        </tbody>
+                    </table>
+                </div>
+                <div class="pagination" id="recordsPagination">
+                    <!-- 分页控件将在这里动态生成 -->
+                </div>
+            </section>
+
+            <!-- 数据管理区域 -->
+            <section class="data-management-section">
+                <div class="section-header">
+                    <h2>🔧 数据管理</h2>
+                </div>
+                <div class="management-actions">
+                    <button id="checkDataBtn" class="btn btn-info">🔍 检查数据状态</button>
+                    <button id="migrateDataBtn" class="btn btn-warning">📦 执行数据迁移</button>
+                    <button id="backupDataBtn" class="btn btn-success">💾 备份数据</button>
+                    <button id="cleanDataBtn" class="btn btn-danger">🗑️ 清理无效数据</button>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- 加载提示 -->
+    <div id="loadingOverlay" class="loading-overlay">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">加载中...</div>
+    </div>
+
+    <!-- 模态框 -->
+    <div id="modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modalTitle">标题</h3>
+                <button class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body" id="modalBody">
+                <!-- 模态框内容 -->
+            </div>
+            <div class="modal-footer">
+                <button id="modalCancel" class="btn btn-secondary">取消</button>
+                <button id="modalConfirm" class="btn btn-primary">确认</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/admin.js"></script>
+</body>
+</html>
